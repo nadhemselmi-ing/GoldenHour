@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GoldenHour — EMS Command</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0d12;
+    --surface: #111520;
+    --surface2: #161c2a;
+    --border: rgba(255,255,255,0.07);
+    --accent: #e8534a;
+    --green: #2ecc8a;
+    --amber: #f5a623;
+    --blue: #4a9eff;
+    --text: #e8eaf0;
+    --muted: #6b7494;
+    --mono: 'Space Mono', monospace;
+    --sans: 'DM Sans', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 13px;
+    height: 100vh;
+    overflow: hidden;
+    display: grid;
+    grid-template-rows: 52px 1fr;
+    grid-template-columns: 1fr 320px;
+  }
+
+  /* HEADER */
+  header {
+    grid-column: 1 / -1;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    gap: 20px;
+  }
+
+  .logo {
+    font-family: var(--mono);
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 0.05em;
+  }
+  .logo span { color: var(--text); }
+
+  .header-stats {
+    display: flex;
+    gap: 24px;
+    margin-left: 20px;
+  }
+
+  .hstat {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+  .hstat-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+  .hstat-val { font-family: var(--mono); font-size: 14px; font-weight: 700; color: var(--text); }
+
+  .live-badge {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--green);
+    font-family: var(--mono);
+  }
+  .pulse {
+    width: 8px; height: 8px;
+    background: var(--green);
+    border-radius: 50%;
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.8); }
+  }
+
+  .btn {
+    padding: 6px 14px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn:hover { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.15); }
+  .btn-danger { border-color: rgba(232,83,74,0.4); color: var(--accent); }
+  .btn-danger:hover { background: rgba(232,83,74,0.1); }
+  .btn-primary { border-color: rgba(74,158,255,0.4); color: var(--blue); }
+  .btn-primary:hover { background: rgba(74,158,255,0.1); }
+
+  /* MAP AREA */
+  #map-container {
+    position: relative;
+    overflow: hidden;
+    background: var(--bg);
+  }
+
+  canvas#city-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  .map-overlay {
+    position: absolute;
+    bottom: 16px;
+    left: 16px;
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .legend-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+  }
+
+  /* SIDEBAR */
+  #sidebar {
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .panel {
+    padding: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .panel-title {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 12px;
+  }
+
+  /* Unit cards */
+  .unit-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    background: var(--surface2);
+    border-radius: 8px;
+    margin-bottom: 6px;
+    border: 1px solid var(--border);
+    transition: border-color 0.2s;
+  }
+  .unit-card.dispatched { border-color: rgba(232,83,74,0.3); }
+  .unit-card.transporting { border-color: rgba(245,166,35,0.3); }
+
+  .unit-dot {
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  }
+  .status-available { background: var(--green); }
+  .status-dispatched { background: var(--accent); animation: pulse 1s infinite; }
+  .status-transporting { background: var(--amber); }
+
+  .unit-info { flex: 1; min-width: 0; }
+  .unit-name { font-family: var(--mono); font-size: 12px; font-weight: 700; }
+  .unit-detail { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* Hospital bars */
+  .hospital-row {
+    margin-bottom: 8px;
+  }
+  .hosp-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 3px;
+  }
+  .hosp-name { font-size: 11px; }
+  .hosp-pct { font-family: var(--mono); font-size: 11px; }
+  .hosp-bar-bg {
+    height: 4px;
+    background: var(--surface2);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .hosp-bar {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.5s ease;
+  }
+
+  /* Events list */
+  .event-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 8px;
+    background: var(--surface2);
+    border-radius: 6px;
+    margin-bottom: 4px;
+    border-left: 3px solid var(--amber);
+    font-size: 11px;
+  }
+  .event-item.closure { border-left-color: var(--accent); }
+
+  /* Incident log */
+  .incident-item {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+  }
+  .sev-badge {
+    flex-shrink: 0;
+    width: 16px; height: 16px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    font-weight: 700;
+    font-family: var(--mono);
+  }
+  .sev-1 { background: rgba(232,83,74,0.25); color: var(--accent); }
+  .sev-2 { background: rgba(245,166,35,0.2); color: var(--amber); }
+  .sev-3 { background: rgba(74,158,255,0.2); color: var(--blue); }
+
+  /* Demo control strip */
+  .demo-strip {
+    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: auto;
+    border-top: 1px solid var(--border);
+  }
+  .demo-strip-title { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+  .demo-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">GOLDEN<span>HOUR</span></div>
+  <div class="header-stats">
+    <div class="hstat">
+      <div class="hstat-label">Dispatches</div>
+      <div class="hstat-val" id="h-dispatches">0</div>
+    </div>
+    <div class="hstat">
+      <div class="hstat-label">Re-routes</div>
+      <div class="hstat-val" id="h-reroutes">0</div>
+    </div>
+    <div class="hstat">
+      <div class="hstat-label">Active Events</div>
+      <div class="hstat-val" id="h-events">0</div>
+    </div>
+    <div class="hstat">
+      <div class="hstat-label">Sim Time</div>
+      <div class="hstat-val" id="h-simtime">0:00</div>
+    </div>
+  </div>
+  <div class="live-badge">
+    <div class="pulse"></div>
+    LIVE
+  </div>
+</header>
+
+<div id="map-container">
+  <canvas id="city-canvas"></canvas>
+  <div class="map-overlay">
+    <div class="legend-item"><div class="legend-dot" style="background:#2ecc8a"></div> Available</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#e8534a"></div> Dispatched</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#f5a623"></div> Transporting</div>
+    <div class="legend-item"><div class="legend-dot" style="background:rgba(232,83,74,0.4);border:1px solid #e8534a"></div> Incident</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#4a9eff"></div> Hospital</div>
+  </div>
+</div>
+
+<div id="sidebar">
+  <div class="panel">
+    <div class="panel-title">Units</div>
+    <div id="units-list"></div>
+  </div>
+  <div class="panel">
+    <div class="panel-title">Hospital Capacity</div>
+    <div id="hospitals-list"></div>
+  </div>
+  <div class="panel">
+    <div class="panel-title">Active Events</div>
+    <div id="events-list"><div style="color:var(--muted);font-size:11px">No active events</div></div>
+  </div>
+  <div class="panel" style="flex:1;overflow-y:auto">
+    <div class="panel-title">Incident Log</div>
+    <div id="incidents-list"></div>
+  </div>
+  <div class="demo-strip">
+    <div class="demo-strip-title">Demo Controls</div>
+    <div class="demo-btns">
+      <button class="btn btn-danger" onclick="triggerIncident(1)">🚨 Critical</button>
+      <button class="btn" onclick="triggerIncident(2)">⚠️ Urgent</button>
+      <button class="btn btn-primary" onclick="triggerJam()">🚦 Traffic Jam</button>
+      <button class="btn btn-danger" onclick="triggerClosure()">🚧 Closure</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── Simulation state (runs locally without backend) ──────────────────────────
+
+const ROWS = 20, COLS = 20;
+const SPACING = 0.0009;
+const BASE_LAT = 36.819, BASE_LON = 10.1658;
+
+// Build graph positions
+const positions = {};
+for (let r = 0; r < ROWS; r++) {
+  for (let c = 0; c < COLS; c++) {
+    const id = `N_${String(r).padStart(2,'0')}_${String(c).padStart(2,'0')}`;
+    positions[id] = { lat: BASE_LAT + r * SPACING, lon: BASE_LON + c * SPACING, r, c };
+  }
+}
+
+const nodeIds = Object.keys(positions);
+
+// Simulation state
+const state = {
+  ambulances: [
+    { id: 'ALPHA-1', r: 2,  c: 2,  status: 'available', incident: null, route: [] },
+    { id: 'ALPHA-2', r: 2,  c: 17, status: 'available', incident: null, route: [] },
+    { id: 'BRAVO-1', r: 10, c: 2,  status: 'available', incident: null, route: [] },
+    { id: 'BRAVO-2', r: 10, c: 17, status: 'available', incident: null, route: [] },
+    { id: 'CHARLIE', r: 17, c: 10, status: 'available', incident: null, route: [] },
+    { id: 'DELTA-1', r: 5,  c: 10, status: 'available', incident: null, route: [] },
+  ],
+  hospitals: [
+    { name: 'NW General',        r: 4,  c: 4,  cap: 80,  load: 40 },
+    { name: 'NE Trauma',         r: 4,  c: 15, cap: 60,  load: 48 },
+    { name: 'City Central',      r: 10, c: 10, cap: 120, load: 60 },
+    { name: 'SW Regional',       r: 15, c: 4,  cap: 50,  load: 18 },
+    { name: 'SE Medical',        r: 15, c: 15, cap: 70,  load: 35 },
+  ],
+  incidents: [],
+  events: [],
+  stats: { dispatches: 0, reroutes: 0, resolved: 0 },
+  tick: 0,
+  simTime: 0,
+};
+
+// Traffic overlay: node -> multiplier for coloring edges
+const trafficMap = {};
+
+// ─── Canvas renderer ──────────────────────────────────────────────────────────
+
+const canvas = document.getElementById('city-canvas');
+const ctx = canvas.getContext('2d');
+let W, H, scaleX, scaleY;
+
+function resize() {
+  W = canvas.offsetWidth;
+  H = canvas.offsetHeight;
+  canvas.width = W;
+  canvas.height = H;
+  scaleX = W / (COLS + 2);
+  scaleY = H / (ROWS + 2);
+  render();
+}
+
+function nodeToXY(r, c) {
+  return { x: (c + 1) * scaleX, y: (ROWS - r) * scaleY };
+}
+
+function render() {
+  ctx.clearRect(0, 0, W, H);
+
+  // Draw grid roads
+  ctx.lineWidth = 0.5;
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const {x, y} = nodeToXY(r, c);
+      // Arterials brighter
+      const isArterial = (r % 5 === 0 || c % 5 === 0);
+      ctx.strokeStyle = isArterial ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.04)';
+      ctx.lineWidth = isArterial ? 1 : 0.5;
+      if (c + 1 < COLS) {
+        const {x: x2, y: y2} = nodeToXY(r, c+1);
+        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x2, y2); ctx.stroke();
+      }
+      if (r + 1 < ROWS) {
+        const {x: x2, y: y2} = nodeToXY(r+1, c);
+        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x2, y2); ctx.stroke();
+      }
+    }
+  }
+
+  // Draw traffic events
+  state.events.forEach(ev => {
+    if (ev.type === 'closure') ctx.strokeStyle = 'rgba(232,83,74,0.5)';
+    else ctx.strokeStyle = `rgba(245,166,35,${Math.min(0.7, 0.2 + (ev.multiplier - 1) / 5)})`;
+    ctx.lineWidth = 3;
+    ev.edges.forEach(([r1,c1,r2,c2]) => {
+      const p1 = nodeToXY(r1, c1), p2 = nodeToXY(r2, c2);
+      ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+    });
+  });
+
+  // Draw ambulance routes
+  state.ambulances.forEach(amb => {
+    if (amb.route && amb.route.length > 1) {
+      ctx.strokeStyle = 'rgba(74,158,255,0.5)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4, 3]);
+      ctx.beginPath();
+      amb.route.forEach((node, i) => {
+        const pos = positions[node];
+        if (!pos) return;
+        const {x, y} = nodeToXY(pos.r, pos.c);
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  });
+
+  // Draw incidents
+  state.incidents.filter(i => !i.resolved).forEach(inc => {
+    const pos = positions[inc.node];
+    if (!pos) return;
+    const {x, y} = nodeToXY(pos.r, pos.c);
+    const colors = {1: '#e8534a', 2: '#f5a623', 3: '#4a9eff'};
+    ctx.fillStyle = colors[inc.severity] + '33';
+    ctx.strokeStyle = colors[inc.severity];
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(x, y, 10, 0, Math.PI*2);
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle = colors[inc.severity];
+    ctx.font = 'bold 10px Space Mono';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(inc.severity, x, y);
+  });
+
+  // Draw hospitals
+  state.hospitals.forEach(hosp => {
+    const {x, y} = nodeToXY(hosp.r, hosp.c);
+    const ratio = hosp.load / hosp.cap;
+    const color = ratio > 0.9 ? '#e8534a' : ratio > 0.7 ? '#f5a623' : '#4a9eff';
+    ctx.fillStyle = color + '22';
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(x-10, y-10, 20, 20, 4);
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle = color;
+    ctx.font = 'bold 10px DM Sans';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('H', x, y);
+  });
+
+  // Draw ambulances
+  state.ambulances.forEach(amb => {
+    const {x, y} = nodeToXY(amb.r, amb.c);
+    const color = amb.status === 'available' ? '#2ecc8a' :
+                  amb.status === 'dispatched' ? '#e8534a' : '#f5a623';
+    ctx.fillStyle = color;
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(x, y, 6, 0, Math.PI*2);
+    ctx.fill(); ctx.stroke();
+
+    // Label
+    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+    ctx.font = '9px Space Mono';
+    ctx.textAlign = 'center';
+    ctx.fillText(amb.id.split('-')[0][0]+amb.id.split('-')[1]||'', x, y - 10);
+  });
+}
+
+// ─── Simulation logic ─────────────────────────────────────────────────────────
+
+function randomNode() {
+  return nodeIds[Math.floor(Math.random() * nodeIds.length)];
+}
+
+function randomEdge() {
+  const node = nodeIds[Math.floor(Math.random() * nodeIds.length)];
+  const pos = positions[node];
+  const dr = Math.random() < 0.5 ? 0 : (Math.random() < 0.5 ? 1 : -1);
+  const dc = dr === 0 ? (Math.random() < 0.5 ? 1 : -1) : 0;
+  const nr = pos.r + dr, nc = pos.c + dc;
+  if (nr >= 0 && nr < ROWS && nc >= 0 && nc < COLS) {
+    return [pos.r, pos.c, nr, nc];
+  }
+  return randomEdge();
+}
+
+function simpleRoute(ar, ac, br, bc) {
+  // Manhattan path: go row-first then col
+  const path = [];
+  const id = (r,c) => `N_${String(r).padStart(2,'0')}_${String(c).padStart(2,'0')}`;
+  let cr = ar, cc = ac;
+  path.push(id(cr, cc));
+  while (cr !== br) { cr += cr < br ? 1 : -1; path.push(id(cr, cc)); }
+  while (cc !== bc) { cc += cc < bc ? 1 : -1; path.push(id(cr, cc)); }
+  return path;
+}
+
+function closestAvailableAmbulance(incR, incC) {
+  let best = null, bestDist = Infinity;
+  state.ambulances.forEach(amb => {
+    if (amb.status !== 'available') return;
+    const d = Math.abs(amb.r - incR) + Math.abs(amb.c - incC);
+    if (d < bestDist) { bestDist = d; best = amb; }
+  });
+  return best;
+}
+
+function bestHospital(fromR, fromC) {
+  let best = null, bestScore = Infinity;
+  state.hospitals.forEach(h => {
+    const dist = Math.abs(fromR - h.r) + Math.abs(fromC - h.c);
+    const loadPenalty = h.load / h.cap > 0.7 ? (h.load / h.cap - 0.7) ** 2 * 50 : 0;
+    const score = dist + loadPenalty;
+    if (score < bestScore) { bestScore = score; best = h; }
+  });
+  return best;
+}
+
+function doDispatch(r, c, severity) {
+  const amb = closestAvailableAmbulance(r, c);
+  if (!amb) return;
+  const hosp = bestHospital(r, c);
+  amb.status = 'dispatched';
+  const incId = `INC_${state.tick}_${Math.floor(Math.random()*900+100)}`;
+  amb.incident = incId;
+  amb.route = simpleRoute(amb.r, amb.c, r, c);
+
+  const inc = { node: `N_${String(r).padStart(2,'0')}_${String(c).padStart(2,'0')}`,
+                severity, resolved: false, unit: amb.id, id: incId, r, c };
+  state.incidents.push(inc);
+  state.stats.dispatches++;
+
+  // After 8s simulated: ambulance moves toward incident
+  setTimeout(() => {
+    amb.r = r; amb.c = c;
+    amb.route = simpleRoute(r, c, hosp.r, hosp.c);
+    amb.status = 'transporting';
+    hosp.load = Math.min(hosp.cap, hosp.load + 1);
+    updateSidebar();
+    render();
+  }, 4000 + Math.random() * 3000);
+
+  // After 16s: ambulance resolves
+  setTimeout(() => {
+    amb.r = hosp.r; amb.c = hosp.c;
+    amb.status = 'available';
+    amb.route = [];
+    amb.incident = null;
+    inc.resolved = true;
+    state.stats.resolved++;
+    updateSidebar();
+    render();
+  }, 9000 + Math.random() * 4000);
+}
+
+function tick() {
+  state.tick++;
+  state.simTime += 30;
+
+  // Drift ambulances slightly toward activity
+  state.ambulances.forEach(amb => {
+    if (amb.status === 'available' && Math.random() < 0.1) {
+      amb.r = Math.max(0, Math.min(ROWS-1, amb.r + (Math.random()<0.5?1:-1)));
+      amb.c = Math.max(0, Math.min(COLS-1, amb.c + (Math.random()<0.5?1:-1)));
+    }
+  });
+
+  // Random incidents
+  if (Math.random() < 0.18) {
+    const r = Math.floor(Math.random() * ROWS);
+    const c = Math.floor(Math.random() * COLS);
+    const sev = Math.random() < 0.15 ? 1 : Math.random() < 0.5 ? 2 : 3;
+    doDispatch(r, c, sev);
+  }
+
+  // Random traffic events
+  if (Math.random() < 0.10) {
+    const edges = Array.from({length: Math.floor(Math.random()*3)+1}, randomEdge);
+    const mult = 1.5 + Math.random() * 3;
+    const ev = { type: 'jam', multiplier: mult, edges, ttl: 120 + Math.random()*300, id: `JAM_${state.tick}` };
+    state.events.push(ev);
+    if (Math.random() < 0.3) { state.stats.reroutes++; } // reroute trigger
+  }
+
+  if (Math.random() < 0.04) {
+    const edge = [randomEdge()];
+    const ev = { type: 'closure', multiplier: 999, edges: edge, ttl: 300 + Math.random()*600, id: `CLOSE_${state.tick}` };
+    state.events.push(ev);
+    if (Math.random() < 0.5) { state.stats.reroutes++; }
+  }
+
+  // Decay events
+  state.events = state.events.filter(ev => {
+    ev.ttl -= 30;
+    return ev.ttl > 0;
+  });
+
+  // Hospital load drift
+  state.hospitals.forEach(h => {
+    const target = Math.floor(h.cap * (0.45 + 0.2 * Math.sin(state.simTime / 14400 * Math.PI)));
+    if (h.load < target) h.load = Math.min(h.cap, h.load + Math.floor(Math.random()*2));
+    else h.load = Math.max(0, h.load - Math.floor(Math.random()*2));
+  });
+
+  updateHeader();
+  updateSidebar();
+  render();
+}
+
+// ─── UI updates ────────────────────────────────────────────────────────────────
+
+function updateHeader() {
+  document.getElementById('h-dispatches').textContent = state.stats.dispatches;
+  document.getElementById('h-reroutes').textContent = state.stats.reroutes;
+  document.getElementById('h-events').textContent = state.events.length;
+  const m = Math.floor(state.simTime / 60);
+  const s = state.simTime % 60;
+  document.getElementById('h-simtime').textContent = `${m}:${String(s).padStart(2,'0')}`;
+}
+
+function updateSidebar() {
+  // Units
+  const ul = document.getElementById('units-list');
+  ul.innerHTML = state.ambulances.map(a => {
+    const sc = `status-${a.status}`;
+    const detail = a.incident ? `→ ${a.incident}` : `(${a.r},${a.c})`;
+    return `<div class="unit-card ${a.status}">
+      <div class="unit-dot ${sc}"></div>
+      <div class="unit-info">
+        <div class="unit-name">${a.id}</div>
+        <div class="unit-detail">${a.status} ${detail}</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Hospitals
+  const hl = document.getElementById('hospitals-list');
+  hl.innerHTML = state.hospitals.map(h => {
+    const ratio = h.load / h.cap;
+    const pct = Math.round(ratio * 100);
+    const color = ratio > 0.9 ? '#e8534a' : ratio > 0.7 ? '#f5a623' : '#2ecc8a';
+    return `<div class="hospital-row">
+      <div class="hosp-header">
+        <span class="hosp-name">${h.name}</span>
+        <span class="hosp-pct" style="color:${color}">${pct}%</span>
+      </div>
+      <div class="hosp-bar-bg">
+        <div class="hosp-bar" style="width:${pct}%;background:${color}"></div>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Events
+  const el = document.getElementById('events-list');
+  if (state.events.length === 0) {
+    el.innerHTML = '<div style="color:var(--muted);font-size:11px">No active events</div>';
+  } else {
+    el.innerHTML = state.events.map(ev => `
+      <div class="event-item ${ev.type}">
+        <span>${ev.id}</span>
+        <span style="color:var(--muted)">${ev.type === 'closure' ? '🚧 BLOCKED' : `×${ev.multiplier.toFixed(1)}`}</span>
+        <span style="color:var(--muted)">${ev.ttl.toFixed(0)}s</span>
+      </div>`).join('');
+  }
+
+  // Incidents
+  const il = document.getElementById('incidents-list');
+  const recent = [...state.incidents].reverse().slice(0, 15);
+  il.innerHTML = recent.map(inc => {
+    const sc = inc.severity === 1 ? 'sev-1' : inc.severity === 2 ? 'sev-2' : 'sev-3';
+    const label = ['', 'CRITICAL', 'URGENT', 'STANDARD'][inc.severity];
+    return `<div class="incident-item">
+      <div class="sev-badge ${sc}">${inc.severity}</div>
+      <div>
+        <div style="font-family:var(--mono);font-size:11px">${inc.id}</div>
+        <div style="color:var(--muted)">${inc.resolved ? '✓ resolved' : `→ ${inc.unit || 'unassigned'}`}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ─── Demo controls ─────────────────────────────────────────────────────────────
+
+function triggerIncident(sev) {
+  const r = Math.floor(Math.random() * ROWS);
+  const c = Math.floor(Math.random() * COLS);
+  doDispatch(r, c, sev);
+  updateSidebar(); render();
+}
+
+function triggerJam() {
+  const edges = Array.from({length: 3}, randomEdge);
+  const mult = 2 + Math.random() * 2;
+  state.events.push({ type: 'jam', multiplier: mult, edges, ttl: 240, id: `JAM_DEMO_${state.tick}` });
+  state.stats.reroutes += Math.floor(Math.random() * 2) + 1;
+  updateSidebar(); render();
+}
+
+function triggerClosure() {
+  state.events.push({ type: 'closure', multiplier: 999, edges: [randomEdge()], ttl: 450, id: `CLOSE_DEMO_${state.tick}` });
+  state.stats.reroutes += Math.floor(Math.random() * 3) + 1;
+  updateSidebar(); render();
+}
+
+// ─── Boot ─────────────────────────────────────────────────────────────────────
+
+window.addEventListener('resize', resize);
+resize();
+updateSidebar();
+setInterval(tick, 3000);  // 3 real seconds = 30 simulated seconds
+</script>
+</body>
+</html>
