@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>OptiSiren — Real Map EMS (Tunis)</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<style>
+body { margin:0; font-family:Arial; }
+#map { width:100vw; height:100vh; }
+
+.panel {
+  position:absolute;
+  top:10px;
+  left:10px;
+  background:white;
+  padding:10px;
+  border-radius:10px;
+  box-shadow:0 4px 10px rgba(0,0,0,0.2);
+  font-size:13px;
+  z-index:999;
+}
+button {
+  margin:4px 0;
+  padding:6px 10px;
+  border:none;
+  border-radius:6px;
+  cursor:pointer;
+}
+.red { background:#ef4444; color:white; }
+.amber { background:#f59e0b; color:white; }
+.blue { background:#3b82f6; color:white; }
+</style>
+</head>
+
+<body>
+
+<div id="map"></div>
+
+<div class="panel">
+  <b>🚑 OptiSiren — Tunis EMS</b><br><br>
+  <button class="red" onclick="spawnIncident(1)">Critical</button><br>
+  <button class="amber" onclick="spawnIncident(2)">Urgent</button><br>
+  <button class="blue" onclick="spawnIncident(3)">Normal</button>
+</div>
+
+<script>
+// ── INIT MAP (TUNIS) ─────────────────────────────────────────
+const map = L.map('map').setView([36.8065, 10.1815], 12);
+
+L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', {
+  maxZoom: 19
+}).addTo(map);
+
+// ── HOSPITALS (REAL LOCATIONS) ───────────────────────────────
+const hospitals = [
+  {name:"Hôpital La Rabta", lat:36.799, lng:10.160},
+  {name:"Hôpital Charles Nicolle", lat:36.800, lng:10.170},
+  {name:"Hôpital Aziza Othmana", lat:36.805, lng:10.175},
+  {name:"Hôpital Habib Thameur", lat:36.780, lng:10.180},
+  {name:"Hôpital Mongi Slim (La Marsa)", lat:36.878, lng:10.330},
+  {name:"Hôpital Abderrahmen Mami (Ariana)", lat:36.862, lng:10.195},
+  {name:"Hôpital Kassab (Manouba)", lat:36.810, lng:10.090}
+];
+
+hospitals.forEach(h => {
+  L.marker([h.lat, h.lng])
+    .addTo(map)
+    .bindPopup("🏥 " + h.name);
+});
+
+// ── AMBULANCES (PROTECTION CIVILE BASES) ─────────────────────
+const ambulances = [
+  {id:"Unit-1", lat:36.806, lng:10.181, marker:null},
+  {id:"Unit-2", lat:36.862, lng:10.195, marker:null},
+  {id:"Unit-3", lat:36.780, lng:10.180, marker:null},
+  {id:"Unit-4", lat:36.810, lng:10.090, marker:null},
+  {id:"Unit-5", lat:36.878, lng:10.330, marker:null},
+];
+
+// create markers
+ambulances.forEach(a => {
+  a.marker = L.circleMarker([a.lat, a.lng], {
+    radius:8,
+    color:"#ef4444",
+    fillOpacity:1
+  }).addTo(map).bindPopup("🚑 " + a.id);
+});
+
+// ── INCIDENT SYSTEM ──────────────────────────────────────────
+let incidents = [];
+
+function spawnIncident(sev) {
+  const lat = 36.75 + Math.random()*0.2;
+  const lng = 10.05 + Math.random()*0.3;
+
+  const color = sev==1?"#ef4444":sev==2?"#f59e0b":"#3b82f6";
+
+  const marker = L.circle([lat,lng], {
+    radius:300,
+    color:color,
+    fillOpacity:0.3
+  }).addTo(map);
+
+  incidents.push({lat,lng,sev,marker});
+
+  dispatch(lat,lng);
+}
+
+// ── DISPATCH LOGIC (nearest ambulance) ───────────────────────
+function dispatch(lat,lng) {
+  let best = null;
+  let bestDist = Infinity;
+
+  ambulances.forEach(a => {
+    const d = distance(a.lat,a.lng,lat,lng);
+    if(d < bestDist) {
+      bestDist = d;
+      best = a;
+    }
+  });
+
+  if(best) moveAmbulance(best, lat, lng);
+}
+
+// ── MOVE ANIMATION ───────────────────────────────────────────
+function moveAmbulance(amb, targetLat, targetLng) {
+  const steps = 100;
+  let i = 0;
+
+  const startLat = amb.lat;
+  const startLng = amb.lng;
+
+  const interval = setInterval(() => {
+    i++;
+    const t = i/steps;
+
+    amb.lat = startLat + (targetLat - startLat)*t;
+    amb.lng = startLng + (targetLng - startLng)*t;
+
+    amb.marker.setLatLng([amb.lat, amb.lng]);
+
+    if(i >= steps) {
+      clearInterval(interval);
+
+      // go to nearest hospital
+      const hosp = nearestHospital(targetLat,targetLng);
+      moveAmbulance(amb, hosp.lat, hosp.lng);
+    }
+  }, 50);
+}
+
+// ── NEAREST HOSPITAL ─────────────────────────────────────────
+function nearestHospital(lat,lng) {
+  let best = hospitals[0];
+  let bestDist = Infinity;
+
+  hospitals.forEach(h => {
+    const d = distance(lat,lng,h.lat,h.lng);
+    if(d < bestDist) {
+      bestDist = d;
+      best = h;
+    }
+  });
+
+  return best;
+}
+
+// ── DISTANCE ─────────────────────────────────────────────────
+function distance(lat1,lng1,lat2,lng2) {
+  return Math.sqrt((lat1-lat2)**2 + (lng1-lng2)**2);
+}
+
+</script>
+
+</body>
+</html>
